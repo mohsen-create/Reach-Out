@@ -43,7 +43,7 @@
     input, textarea {
       width: 100%;
       padding: 15px;
-      margin-bottom: 20px;
+      margin-bottom: 10px;
       border: none;
       border-radius: 15px;
       font-size: 16px;
@@ -87,6 +87,13 @@
     .hidden {
       display: none;
     }
+
+    .counter {
+      font-size: 12px;
+      text-align: right;
+      opacity: 0.6;
+      margin-bottom: 10px;
+    }
   </style>
 </head>
 <body>
@@ -95,21 +102,53 @@
     <h1>Message Us</h1>
     <p>We’d love to hear from you. Your message stays safe in your browser.</p>
     <form id="messageForm" action="https://formspree.io/f/movwoebq" method="POST" data-formspree-honeypot="true">
-      <input type="text" name="name" id="name" placeholder="Your Name" required />
+      <input type="text" name="name" id="name" placeholder="Your Name" required maxlength="50"/>
+      <div class="counter" id="nameCounter">0 / 50</div>
       <input type="email" name="email" id="email" placeholder="Your Email" required />
-      <textarea name="message" id="message" placeholder="Your Message" rows="5" required></textarea>
-      
+      <textarea name="message" id="message" placeholder="Your Message" rows="5" required maxlength="500"></textarea>
+      <div class="counter" id="msgCounter">0 / 500</div>
+
       <input type="text" name="_gotcha" class="hidden" />
 
-      <button type="submit">Send Message</button>
+      <button type="submit" id="submitBtn">Send Message</button>
     </form>
     <div class="message" id="responseMsg"></div>
-    <div class="footer">🌟 Send To Daily Boost · Made By Daily Boost</div>
+    <div class="footer" id="lastSentFooter">🌟 Send To Daily Boost · Made By Daily Boost</div>
   </div>
 
   <script>
     const form = document.getElementById('messageForm');
     const responseMsg = document.getElementById('responseMsg');
+    const submitBtn = document.getElementById('submitBtn');
+    const nameInput = document.getElementById('name');
+    const messageInput = document.getElementById('message');
+    const emailInput = document.getElementById('email');
+    const nameCounter = document.getElementById('nameCounter');
+    const msgCounter = document.getElementById('msgCounter');
+    const lastSentFooter = document.getElementById('lastSentFooter');
+
+    // Input counters
+    nameInput.addEventListener('input', () => {
+      nameCounter.textContent = `${nameInput.value.length} / 50`;
+    });
+
+    messageInput.addEventListener('input', () => {
+      msgCounter.textContent = `${messageInput.value.length} / 500`;
+    });
+
+    // Save timestamp of last sent message
+    const lastSent = localStorage.getItem('lastSentTime');
+    if (lastSent) {
+      lastSentFooter.textContent += ` · Last sent: ${new Date(parseInt(lastSent)).toLocaleString()}`;
+    }
+
+    // Keyboard shortcut (Enter on last field)
+    messageInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        submitBtn.click();
+      }
+    });
 
     form.addEventListener('submit', async function(e) {
       e.preventDefault();
@@ -120,6 +159,15 @@
         return;
       }
 
+      if (nameInput.value.length < 2 || messageInput.value.length < 10) {
+        responseMsg.textContent = "⚠️ Please fill out the fields properly.";
+        return;
+      }
+
+      const startTime = performance.now();
+      submitBtn.disabled = true;
+      submitBtn.textContent = "Sending...";
+
       const formData = new FormData(form);
       try {
         const response = await fetch(form.action, {
@@ -128,15 +176,29 @@
           headers: { 'Accept': 'application/json' }
         });
 
+        const duration = performance.now() - startTime;
+        if (duration < 500) {
+          responseMsg.textContent = "⚠️ Suspiciously fast submission. Are you a bot?";
+          submitBtn.disabled = false;
+          submitBtn.textContent = "Send Message";
+          return;
+        }
+
         if (response.ok) {
           form.reset();
+          nameCounter.textContent = "0 / 50";
+          msgCounter.textContent = "0 / 500";
           responseMsg.textContent = "✅ Message sent successfully!";
+          localStorage.setItem('lastSentTime', Date.now());
           setTimeout(() => responseMsg.textContent = "", 5000);
         } else {
           responseMsg.textContent = "❌ Error sending message. Try again.";
         }
       } catch (error) {
         responseMsg.textContent = "⚠️ Network error. Try again.";
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.textContent = "Send Message";
       }
     });
   </script>

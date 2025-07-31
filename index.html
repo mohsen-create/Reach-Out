@@ -15,11 +15,12 @@
       justify-content: center;
       align-items: center;
       min-height: 100vh;
+      transition: background 0.4s ease;
     }
 
     .container {
       background: rgba(255, 255, 255, 0.05);
-      box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.3);
+      box-shadow: 0 8px 32px rgba(31, 38, 135, 0.3);
       backdrop-filter: blur(10px);
       border-radius: 20px;
       padding: 40px;
@@ -43,13 +44,18 @@
     input, textarea {
       width: 100%;
       padding: 15px;
-      margin-bottom: 10px;
+      margin-bottom: 20px;
       border: none;
       border-radius: 15px;
       font-size: 16px;
       background: rgba(255, 255, 255, 0.1);
       color: white;
       outline: none;
+      transition: 0.2s ease;
+    }
+
+    input:focus, textarea:focus {
+      background: rgba(255, 255, 255, 0.2);
     }
 
     input::placeholder, textarea::placeholder {
@@ -68,7 +74,12 @@
       transition: 0.3s ease;
     }
 
-    button:hover {
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    button:hover:not(:disabled) {
       opacity: 0.9;
     }
 
@@ -88,11 +99,19 @@
       display: none;
     }
 
-    .counter {
-      font-size: 12px;
+    .char-counter {
       text-align: right;
-      opacity: 0.6;
+      font-size: 12px;
+      opacity: 0.7;
+      margin-top: -15px;
       margin-bottom: 10px;
+    }
+
+    .error {
+      color: #ff9999;
+      font-size: 13px;
+      margin-top: -15px;
+      margin-bottom: 15px;
     }
   </style>
 </head>
@@ -101,55 +120,59 @@
   <div class="container">
     <h1>Message Us</h1>
     <p>We’d love to hear from you. Your message stays safe in your browser.</p>
+
     <form id="messageForm" action="https://formspree.io/f/movwoebq" method="POST" data-formspree-honeypot="true">
-      <input type="text" name="name" id="name" placeholder="Your Name" required maxlength="50"/>
-      <div class="counter" id="nameCounter">0 / 50</div>
+      <input type="text" name="name" id="name" placeholder="Your Name" required />
       <input type="email" name="email" id="email" placeholder="Your Email" required />
-      <textarea name="message" id="message" placeholder="Your Message" rows="5" required maxlength="500"></textarea>
-      <div class="counter" id="msgCounter">0 / 500</div>
+      <div class="error" id="emailError"></div>
+      <textarea name="message" id="message" placeholder="Your Message" rows="5" required></textarea>
+      <div class="char-counter" id="charCounter">0 / 500</div>
 
       <input type="text" name="_gotcha" class="hidden" />
 
       <button type="submit" id="submitBtn">Send Message</button>
     </form>
+
     <div class="message" id="responseMsg"></div>
-    <div class="footer" id="lastSentFooter">🌟 Send To Daily Boost · Made By Daily Boost</div>
+    <div class="footer">🌟 Send To Daily Boost · Made By Daily Boost</div>
   </div>
 
   <script>
     const form = document.getElementById('messageForm');
     const responseMsg = document.getElementById('responseMsg');
-    const submitBtn = document.getElementById('submitBtn');
-    const nameInput = document.getElementById('name');
     const messageInput = document.getElementById('message');
+    const charCounter = document.getElementById('charCounter');
     const emailInput = document.getElementById('email');
-    const nameCounter = document.getElementById('nameCounter');
-    const msgCounter = document.getElementById('msgCounter');
-    const lastSentFooter = document.getElementById('lastSentFooter');
+    const emailError = document.getElementById('emailError');
+    const submitBtn = document.getElementById('submitBtn');
 
-    // Input counters
-    nameInput.addEventListener('input', () => {
-      nameCounter.textContent = `${nameInput.value.length} / 50`;
-    });
-
+    // Live character counter
     messageInput.addEventListener('input', () => {
-      msgCounter.textContent = `${messageInput.value.length} / 500`;
-    });
-
-    // Save timestamp of last sent message
-    const lastSent = localStorage.getItem('lastSentTime');
-    if (lastSent) {
-      lastSentFooter.textContent += ` · Last sent: ${new Date(parseInt(lastSent)).toLocaleString()}`;
-    }
-
-    // Keyboard shortcut (Enter on last field)
-    messageInput.addEventListener('keypress', (e) => {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        submitBtn.click();
+      const len = messageInput.value.length;
+      charCounter.textContent = `${len} / 500`;
+      if (len > 500) {
+        charCounter.style.color = 'salmon';
+        submitBtn.disabled = true;
+      } else {
+        charCounter.style.color = 'white';
+        submitBtn.disabled = false;
       }
     });
 
+    // Live email validation
+    emailInput.addEventListener('input', () => {
+      const email = emailInput.value;
+      const regex = /^[^ ]+@[^ ]+\.[a-z]{2,3}$/;
+      if (!regex.test(email)) {
+        emailError.textContent = "Invalid email format";
+        submitBtn.disabled = true;
+      } else {
+        emailError.textContent = "";
+        submitBtn.disabled = false;
+      }
+    });
+
+    // Form submit
     form.addEventListener('submit', async function(e) {
       e.preventDefault();
 
@@ -159,12 +182,6 @@
         return;
       }
 
-      if (nameInput.value.length < 2 || messageInput.value.length < 10) {
-        responseMsg.textContent = "⚠️ Please fill out the fields properly.";
-        return;
-      }
-
-      const startTime = performance.now();
       submitBtn.disabled = true;
       submitBtn.textContent = "Sending...";
 
@@ -176,21 +193,12 @@
           headers: { 'Accept': 'application/json' }
         });
 
-        const duration = performance.now() - startTime;
-        if (duration < 500) {
-          responseMsg.textContent = "⚠️ Suspiciously fast submission. Are you a bot?";
-          submitBtn.disabled = false;
-          submitBtn.textContent = "Send Message";
-          return;
-        }
-
         if (response.ok) {
           form.reset();
-          nameCounter.textContent = "0 / 50";
-          msgCounter.textContent = "0 / 500";
+          charCounter.textContent = "0 / 500";
           responseMsg.textContent = "✅ Message sent successfully!";
-          localStorage.setItem('lastSentTime', Date.now());
-          setTimeout(() => responseMsg.textContent = "", 5000);
+          localStorage.removeItem("name");
+          localStorage.removeItem("email");
         } else {
           responseMsg.textContent = "❌ Error sending message. Try again.";
         }
@@ -199,7 +207,26 @@
       } finally {
         submitBtn.disabled = false;
         submitBtn.textContent = "Send Message";
+        setTimeout(() => responseMsg.textContent = "", 6000);
       }
+    });
+
+    // Auto-fill name/email if saved
+    window.addEventListener("DOMContentLoaded", () => {
+      if (localStorage.getItem("name")) {
+        document.getElementById("name").value = localStorage.getItem("name");
+      }
+      if (localStorage.getItem("email")) {
+        document.getElementById("email").value = localStorage.getItem("email");
+      }
+    });
+
+    // Save name/email on change
+    document.getElementById("name").addEventListener("input", () => {
+      localStorage.setItem("name", document.getElementById("name").value);
+    });
+    emailInput.addEventListener("input", () => {
+      localStorage.setItem("email", emailInput.value);
     });
   </script>
 
